@@ -16,26 +16,28 @@ class Quoter:
         :param code: 股票代码，沪市前缀0，深市前缀1。
         :param start_date: 起始日期，格式19900101
         :param end_date: 结束日期，格式20180101
-        :return: 返回CSV文件
+        :return: 返回CSV类
         '''
         url = ("http://quotes.money.163.com/service/chddata.html?"
                                 "code={0}&start={1}&end={2}&fields="
                                  "TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP".format(code,start_date,end_date))
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise RuntimeError('connection error %s ' % response.status_code)
+        response = requests.get(url,timeout=5)
+        response.raise_for_status()
         content = str(response.content,encoding='gbk')
         with open('tmp.csv','w') as f:
             f.write(content)
         data = content.split('\n')
-        data = data[1:]#TODO 额外复制，可能影响速度
-        return csv.reader(reversed(data))
+        iterator = iter(data)
+        #去掉第一行头
+        next(iterator)
+        return csv.reader(iterator)
 
 
 class DayDataHelper:
     '''
-    网易数据源数据库接口
+    网易数据源日线数据库接口
     每个股票对应一张表，表名是股票的代码
+    数据库数据按日期升序排列，使用前复权
     '''
     def __init__(self):
         self.__path = os.path.join(os.path.join(os.getcwd(),'datasource\\wangyi'),'day.db')
@@ -99,26 +101,47 @@ class DayDataHelper:
                 conn.execute("DELETE FROM '{0}'".format(code))
                 conn.commit()
 
-    def __downloadToDB(self, code, start_date='19900101', end_date=None):
+    def __clearAndDownloadToDB(self, code):
         '''
         会先抹掉表中所有数据，谨慎使用!
-        :param code:
-        :param start_date:
-        :param end_date:
-        :return:
+        一般情况下数据库数据应该是正确的，这个函数应近在特殊情况下被调用（比如初始状态或有除权发生）
         '''
         self.__create_table(code)
         self.__clear_data(code)
-        if end_date is None:
-            end_date = str(datetime.datetime.now().date()).replace('-','')
-        data = self.__quoter.get(self.__addPrefix(code),start_date,end_date)
+        #下载到今天为止的所有日线数据
+        end_date = str(datetime.datetime.now().date()).replace('-','')
+        data = self.__quoter.get(self.__addPrefix(code),'19900101',end_date)
         for row in data:
             self.__inset_without_commit(code, *row)
         self.__commit()
 
+    def __complementDB(self,code):
+        '''
+        补充数据库缺失的数据,假定之前的数据库没有缺失
+        :param code:
+        :return:
+        '''
+        latestDate = self.__getLatestDate(code)
+        today = str(datetime.datetime.now().date())
+        #有段时间没开程序了
+        if latestDate<today:
+            start_date = datetime.datetime.strptime(latestDate,'%Y-%m-%d')+datetime.timedelta(days=1)
+            start_date = datetime.datetime.strftime(start_date,'%Y%m%d')
+            data = self.__quoter.get(self.__addPrefix(code), start_date, today.replace('-',''))
+            for row in data:
+                self.__inset_without_commit(code, *row)
+            self.__commit()
+
+    def __getLatestDate(self,code):
+        with sqlite3.connect(self.__path) as conn:
+            cursor = conn.execute("SELECT DATE FROM '%s' ORDER BY DATE DESC" % code)
+            for row in cursor:
+                return row[0]
+        #空表
+        return '1989-12-31'
+
     def __addPrefix(self,code):
         '''
-
         :param code:
         :return: 前缀+股票代码 0表示沪市，1表示深市
         '''
@@ -136,23 +159,25 @@ class DayDataHelper:
         :param end_date:
         :return:
         '''
+        #确保stock是空的
         assert len(stock[bar.Frequency.DAY])==0
-        if not self.__has_table(stock.code):
-            self.__downloadToDB(stock.code, start_date, end_date)
-        #TODO 还需时间数据库只含有部分数据的情况处理
+
+        code = stock.code
+        if not self.__has_table(code):
+            self.__clearAndDownloadToDB(code)
+        self.__complementDB(code)
+
+        if end_date is None:
+            end_date = datetime.datetime.today().date().strftime('%Y-%m-%d')
+        start_date = '-'.join((start_date[0:4], start_date[4:6], start_date[6:8]))
+
         with sqlite3.connect(self.__path) as conn:
-            cursor = conn.execute("SELECT STATUS,DATE,TCLOSE,HIGH,LOW,TOPEN,VOTURNOVER FROM '{0}'".format(stock.code))
-            if end_date is None:
-                end_date = datetime.datetime.today().date()
-            else:
-                end_date = datetime.datetime.strptime(end_date,'%Y%m%d').date()
-            start_date = datetime.datetime.strptime(start_date,'%Y%m%d').date()
+            cmd = "SELECT STATUS,DATE,TCLOSE,HIGH,LOW,TOPEN,VOTURNOVER FROM '{0}' WHERE DATE>='{1}' AND DATE<='{2}' ORDER By DATE ASC ".format(stock.code,start_date,end_date)
+            cursor = conn.execute(cmd)
             for row in cursor:
-                date = datetime.datetime.strptime(row[1],'%Y-%m-%d').date()
-                if date>=start_date and date<=end_date:
-                    if row[0]==1:
-                        raise RuntimeError('data missing for %s %s'% (date,stock.code))
-                    stock.append(bar.BasicBar(date,row[5],row[3],row[4],row[2],row[6],None,bar.Frequency.DAY))
+                if row[0]==1:
+                    raise RuntimeError('data missing for %s %s'% (row[1],code))
+                stock.append(bar.BasicBar(row[1],row[5],row[3],row[4],row[2],row[6],None,bar.Frequency.DAY))
 
 
 

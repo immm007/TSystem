@@ -177,7 +177,7 @@ class BufferedSequenceDataSeries:
         #技术指标可以为None
         #assert value is not None
         if len(self.__dateTimes) != 0 and self.__dateTimes[-1] >= dateTime:
-            raise Exception("Invalid datetime. It must be bigger than that last one")
+            raise Exception("Invalid datetime. It %s must be bigger than that last one %s" % (self.__dateTimes[-1],dateTime))
         assert len(self.__values) == len(self.__dateTimes)
         self.__dateTimes.append(dateTime)
         self.__values.append(value)
@@ -188,7 +188,7 @@ class BufferedSequenceDataSeries:
         #技术指标可以为None
         #assert value is not None
         if len(self.__dateTimes) != 0 and self.__dateTimes[-1] >= dateTime:
-            raise Exception("Invalid datetime. It must be bigger than that last one")
+            raise Exception("Invalid datetime. It %s must be bigger than that last one %s" % (self.__dateTimes[-1],dateTime))
         self.__dateTimes.update(dateTime)
         self.__values.update(value)
         self.__updateValueEvent(self,dateTime,value)
