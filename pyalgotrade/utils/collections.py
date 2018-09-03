@@ -144,7 +144,7 @@ class ListDeque(object):
 class BufferedList:
     def __init__(self):
         self.__values = []
-        self.__buffered = False
+        self.__buffering = False
 
     def __len__(self):
         return len(self.__values)
@@ -158,21 +158,24 @@ class BufferedList:
     def __str__(self):
         return str(self.__values)
 
+    def isBuffering(self):
+        return self.__buffering
+
     @property
     def data(self):
         return self.__values
 
     def append(self,value):
-        if self.__buffered:
+        if self.__buffering:
             self.__values[-1] = value
         else:
             self.__values.append(value)
-        self.__buffered = False
+        self.__buffering = False
 
     def update(self,value):
-        if not self.__buffered:
+        if not self.__buffering:
             self.__values.append(value)
-            self.__buffered = True
+            self.__buffering = True
         else:
             self.__values[-1] = value
 
@@ -184,7 +187,7 @@ class BufferedNumPyDeque:
         self.__values = np.empty(maxLen, dtype=dtype)
         self.__maxLen = maxLen
         self.__nextPos = 0
-        self.__buffered = False
+        self.__buffering = False
 
     def __len__(self):
         return self.__nextPos
@@ -202,6 +205,9 @@ class BufferedNumPyDeque:
     def maxLen(self):
         return self.__maxLen
 
+    def isBuffering(self):
+        return self.__buffering
+
     #TODO 考虑是否返回copy，防止被修改，因为使用这个类的窗口一般数据量较少
     @property
     def data(self):
@@ -213,7 +219,7 @@ class BufferedNumPyDeque:
         return ret
     
     def append(self, value):
-        if self.__buffered:
+        if self.__buffering:
             self.data[-1] = value
         else:
             if self.__nextPos < self.__maxLen:
@@ -223,11 +229,11 @@ class BufferedNumPyDeque:
                 #queue is full
                 self.__values[0:-1] = self.__values[1:]
                 self.__values[self.__nextPos-1] = value
-        self.__buffered = False
+        self.__buffering = False
 
     def update(self,value):
-        if not self.__buffered:
+        if not self.__buffering:
             self.append(value)
-            self.__buffered = True
+            self.__buffering = True
         else:
             self.data[-1] = value

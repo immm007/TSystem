@@ -6,34 +6,122 @@ import os
 import csv
 import datetime
 
-class Quoter:
+class CSVStringHelper:
     '''
-    只提供股票和指数的日线历史数据，暂不支持ETF基金
+    为了提高解析下载的CSV字符串效率的类
     '''
-    def get(self,code:str,start_date:str,end_date:str):
+    def __init__(self,s):
+        self.__s = s
+        self.__len = len(s)
+        self.__newLinePos = 0
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        if self.__newLinePos==self.__len:
+            raise StopIteration
+        startPos = self.__newLinePos
+        while self.__s[self.__newLinePos]!='\n':
+            self.__newLinePos+=1
+        self.__newLinePos+=1
+        return self.__s[startPos:self.__newLinePos-1]
+        
+    
+class Quotation:
+    '''
+    网易API接口的封装，所有方法都是静态方法
+    '''
+    def __addPrefix(code):
         '''
-        获取某只股票日线的某段时间历史数据
-        :param code: 股票代码，沪市前缀0，深市前缀1。
-        :param start_date: 起始日期，格式19900101
-        :param end_date: 结束日期，格式20180101
+        :param code:
+        :return: 前缀+股票代码 0表示沪市，1表示深市
+        '''
+        if code[0] == '6':
+            return '0'+code
+        elif code[0]=='0' or code[0]=='3':
+            return '1'+code
+        raise RuntimeError('unsupoorted code %s' % code)
+
+    def getDayData(code:str,start_date:str,end_date:str,timeout=5):
+        '''
+        获取某只股票任意段时间段的日线历史数据
+        :param code: 股票代码
+        :param start_date: 起始日期，格式1990-01-01
+        :param end_date: 结束日期，格式2018-01-01
         :return: 返回CSV类
         '''
         url = ("http://quotes.money.163.com/service/chddata.html?"
                                 "code={0}&start={1}&end={2}&fields="
-                                 "TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP".format(code,start_date,end_date))
-        response = requests.get(url,timeout=5)
+                                 "TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP"
+               .format(Quotation.__addPrefix(code),start_date.replace('-',''),end_date.replace('-','')))
+        response = requests.get(url,timeout=timeout)
         response.raise_for_status()
-        content = str(response.content,encoding='gbk')
-        with open('tmp.csv','w') as f:
-            f.write(content)
-        data = content.split('\n')
-        iterator = iter(data)
+        content =CSVStringHelper(response.text)
+#        with open('tmp.csv','w') as f:
+#            f.write(content)
+        iterator = iter(content)
         #去掉第一行头
         next(iterator)
         return csv.reader(iterator)
 
+    def getAllCloseData(code,period='day',fq=True,timeout=5):
+        '''
+        获取股票或指数日，周，月度所有时间节点的收盘数据
+        :param code:标的代码
+        :param period: day, week, month
+        :param fq:复权为True，不复权为False
+        :return:dict
+        '''
+        if not fq:
+            kline = 'kline'
+        else:
+            kline = 'klinederc'
+        url = 'http://img1.money.126.net/data/hs/%s/%s/times/%s.json' % (kline,period,Quotation.__addPrefix(code))
+        response = requests.get(url,timeout=timeout)
+        response.raise_for_status()
+        return response.json()
 
-class DayDataHelper:
+    def getYearlyDaysData(code,year,period='day',fq=False,timeout=5):
+        '''
+        获取股票或指数，某一年度的日，周，月线所有数据
+        :param year:
+        :param period:
+        :param fq:
+        :return:dict
+        '''
+        #TODO 目前API不支持复权选择，确认返回的数据有没有复权
+        if not fq:
+            kline = 'kline'
+        else:
+            kline = 'klinederc'
+        url = 'http://img1.money.126.net/data/hs/%s/%s/history/%s/%s.json' % (kline,period,year,Quotation.__addPrefix(code))
+        response = requests.get(url,timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
+    def getTodayCurve(code,timeout=5):
+        '''
+        获取当日分时图数据
+        :return:dict
+        '''
+        url = 'http://img1.money.126.net/data/hs/time/today/%s.json' % Quotation.__addPrefix(code)
+        response = requests.get(url,timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
+    def get4DaysCurve(code,timeout=5):
+        '''
+        获取最近四天（不包括今天）的分时图数据
+        :return:dict
+        '''
+        url = 'http://img1.money.126.net/data/hs/time/4days/%s.json' % Quotation.__addPrefix(code)
+        response = requests.get(url,timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
+
+class DBInterface:
     '''
     网易数据源日线数据库接口
     每个股票对应一张表，表名是股票的代码
@@ -41,7 +129,6 @@ class DayDataHelper:
     '''
     def __init__(self):
         self.__path = os.path.join(os.path.join(os.getcwd(),'datasource\\wangyi'),'day.db')
-        self.__quoter = Quoter()
         self.__conn = None
 
     def __get_tables(self):
@@ -109,8 +196,8 @@ class DayDataHelper:
         self.__create_table(code)
         self.__clear_data(code)
         #下载到今天为止的所有日线数据
-        end_date = str(datetime.datetime.now().date()).replace('-','')
-        data = self.__quoter.get(self.__addPrefix(code),'19900101',end_date)
+        end_date = str(datetime.datetime.now().date())
+        data = Quotation.getDayData(code,'1990-01-01',end_date)
         for row in data:
             self.__inset_without_commit(code, *row)
         self.__commit()
@@ -126,9 +213,10 @@ class DayDataHelper:
         #有段时间没开程序了
         if latestDate<today:
             start_date = datetime.datetime.strptime(latestDate,'%Y-%m-%d')+datetime.timedelta(days=1)
-            start_date = datetime.datetime.strftime(start_date,'%Y%m%d')
-            data = self.__quoter.get(self.__addPrefix(code), start_date, today.replace('-',''))
+            start_date = datetime.datetime.strftime(start_date,'%Y-%m-%d')
+            data = Quotation.getDayData(code, start_date, today)
             for row in data:
+                #插入会破坏数据库内部顺序，总是排序取出，不要依赖内部顺序
                 self.__inset_without_commit(code, *row)
             self.__commit()
 
@@ -140,18 +228,7 @@ class DayDataHelper:
         #空表
         return '1989-12-31'
 
-    def __addPrefix(self,code):
-        '''
-        :param code:
-        :return: 前缀+股票代码 0表示沪市，1表示深市
-        '''
-        if code[0] == '6':
-            return '0'+code
-        elif code[0]=='0' or code[0]=='3':
-            return '1'+code
-        raise RuntimeError('unsupoorted code %s' % code)
-
-    def loadBarsToStock(self,stock,start_date='19910101',end_date=None):
+    def loadDayDataToStock(self, stock, start_date='1990-01-01', end_date=None):
         '''
         将数据库中数据拷贝到全新的stock中，为避免重复拷贝，直接操作Stock
         :param stock:
@@ -169,10 +246,8 @@ class DayDataHelper:
 
         if end_date is None:
             end_date = datetime.datetime.today().date().strftime('%Y-%m-%d')
-        start_date = '-'.join((start_date[0:4], start_date[4:6], start_date[6:8]))
-
         with sqlite3.connect(self.__path) as conn:
-            cmd = "SELECT STATUS,DATE,TCLOSE,HIGH,LOW,TOPEN,VOTURNOVER FROM '{0}' WHERE DATE>='{1}' AND DATE<='{2}' ORDER By DATE ASC ".format(stock.code,start_date,end_date)
+            cmd = "SELECT STATUS,DATE,TCLOSE,HIGH,LOW,TOPEN,VOTURNOVER FROM '{0}' WHERE DATE>='{1}' AND DATE<='{2}' ORDER By DATE ASC ".format(code,start_date,end_date)
             cursor = conn.execute(cmd)
             for row in cursor:
                 if row[0]==1:

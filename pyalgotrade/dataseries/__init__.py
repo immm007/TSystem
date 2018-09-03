@@ -22,6 +22,7 @@ import abc
 
 from pyalgotrade import observer
 from pyalgotrade.utils import collections
+import pandas as pd
 
 DEFAULT_MAX_LEN = 1024
 
@@ -154,7 +155,7 @@ class BufferedSequenceDataSeries:
         return len(self.__values)
 
     def __iter__(self):
-        return iter(self.__values)
+        return iter(self.__dateTimes),iter(self.__values)
 
     def __getitem__(self, item):
         return self.__values[item]

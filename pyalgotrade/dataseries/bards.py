@@ -110,26 +110,71 @@ class BarDataSeries(dataseries.SequenceDataSeries):
 
 class BufferedBarDataSeries(dataseries.BufferedSequenceDataSeries):
     '''
-    带缓存的Bar序列
+    带缓存功能的Bar序列
     '''
-    def __init__(self, maxLen=None):
+    def __init__(self,zipMode=True):
         super().__init__()
+        self.__zipMode = self.__zipMode
+        if not zipMode:
+            self.__openDS = dataseries.BufferedSequenceDataSeries()
+            self.__highDS = dataseries.BufferedSequenceDataSeries()
+            self.__lowDS = dataseries.BufferedSequenceDataSeries()
         self.__closeDS = dataseries.BufferedSequenceDataSeries()
         self.__volumeDS = dataseries.BufferedSequenceDataSeries()
 
     def append(self, dateTime, bar):
+
         assert(dateTime is not None)
         assert(bar is not None)
+
         bar.setUseAdjustedValue(False)
         super().append(dateTime,bar)
+
+        if not self.__zipMode:
+            self.__openDS.append(dateTime, bar.getOpen())
+            self.__highDS.append(dateTime, bar.getHigh())
+            self.__lowDS.append(dateTime, bar.getLow())
+
         self.__closeDS.append(dateTime, bar.getClose())
         self.__volumeDS.append(dateTime, bar.getVolume())
+
+    def update(self,dateTime,bar):
+
+        assert(dateTime is not None)
+        assert(bar is not None)
+
+        bar.setUseAdjustedValue(False)
+        super().update(dateTime,bar)
+
+        if not self.__zipMode:
+            self.__openDS.update(dateTime, bar.getOpen())
+            self.__highDS.update(dateTime, bar.getHigh())
+            self.__lowDS.update(dateTime, bar.getLow())
+
+        self.__closeDS.update(dateTime, bar.getClose())
+        self.__volumeDS.update(dateTime, bar.getVolume())
+
+    def getOpenDataSeries(self):
+        """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the open prices."""
+        return self.__openDS
 
     def getCloseDataSeries(self):
         """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the close prices."""
         return self.__closeDS
 
+    def getHighDataSeries(self):
+        """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the high prices."""
+        return self.__highDS
+
+    def getLowDataSeries(self):
+        """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the low prices."""
+        return self.__lowDS
+
     def getVolumeDataSeries(self):
         """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the volume."""
         return self.__volumeDS
+
+    @property
+    def zipMode(self):
+        return self.__zipMode
 

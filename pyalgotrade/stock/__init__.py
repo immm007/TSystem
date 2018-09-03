@@ -1,7 +1,7 @@
 from pyalgotrade import bar
 from pyalgotrade.dataseries.bards import BufferedBarDataSeries
 from pyalgotrade.technical import ma
-from pyalgotrade.stock.wangyi import DayDataHelper
+from pyalgotrade.stock import wangyi
 
 
 class Stock:
@@ -28,7 +28,7 @@ class Stock:
         self.__highLimit = None
         self.__lowLimit = None
         self.__percentChange =None
-        self.__dayDataHelper = DayDataHelper()
+        self.__wangyiDB = wangyi.DBInterface()
 
     def __getitem__(self, period):
         '''
@@ -52,13 +52,8 @@ class Stock:
     def analysisPeriods(self):
         return self.__periods
 
-    def loadData(self,star_date='19900101',end_date = None):
-        '''
-        首先尝试从数据库中补全历史数据，若有缺失则尝试从网上下载
-        :param historyData:
-        :return:
-        '''
-        self.__dayDataHelper.loadBarsToStock(self, star_date, end_date)
+    def loadData(self,star_date='1990-01-01',end_date = None):
+        self.__wangyiDB.loadDayDataToStock(self, star_date, end_date)
 
 
 
