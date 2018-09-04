@@ -1,48 +1,15 @@
-from pyalgotrade.feed import BaseLiveFeed
 from pyalgotrade import bar
+from pyalgotrade.utils import addWangyiPrefix,CSVStringHelper
 import requests
 import sqlite3
 import os
 import csv
 import datetime
 
-class CSVStringHelper:
-    '''
-    为了提高解析下载的CSV字符串效率的类
-    '''
-    def __init__(self,s):
-        self.__s = s
-        self.__len = len(s)
-        self.__newLinePos = 0
-    
-    def __iter__(self):
-        return self
-    
-    def __next__(self):
-        if self.__newLinePos==self.__len:
-            raise StopIteration
-        startPos = self.__newLinePos
-        while self.__s[self.__newLinePos]!='\n':
-            self.__newLinePos+=1
-        self.__newLinePos+=1
-        return self.__s[startPos:self.__newLinePos-1]
-        
-    
-class Quotation:
+class Quoter:
     '''
     网易API接口的封装，所有方法都是静态方法
     '''
-    def __addPrefix(code):
-        '''
-        :param code:
-        :return: 前缀+股票代码 0表示沪市，1表示深市
-        '''
-        if code[0] == '6':
-            return '0'+code
-        elif code[0]=='0' or code[0]=='3':
-            return '1'+code
-        raise RuntimeError('unsupoorted code %s' % code)
-
     def getDayData(code:str,start_date:str,end_date:str,timeout=5):
         '''
         获取某只股票任意段时间段的日线历史数据
@@ -54,7 +21,7 @@ class Quotation:
         url = ("http://quotes.money.163.com/service/chddata.html?"
                                 "code={0}&start={1}&end={2}&fields="
                                  "TCLOSE;HIGH;LOW;TOPEN;LCLOSE;CHG;PCHG;TURNOVER;VOTURNOVER;VATURNOVER;TCAP;MCAP"
-               .format(Quotation.__addPrefix(code),start_date.replace('-',''),end_date.replace('-','')))
+               .format(addWangyiPrefix(code), start_date.replace('-', ''), end_date.replace('-', '')))
         response = requests.get(url,timeout=timeout)
         response.raise_for_status()
         content =CSVStringHelper(response.text)
@@ -77,7 +44,7 @@ class Quotation:
             kline = 'kline'
         else:
             kline = 'klinederc'
-        url = 'http://img1.money.126.net/data/hs/%s/%s/times/%s.json' % (kline,period,Quotation.__addPrefix(code))
+        url = 'http://img1.money.126.net/data/hs/%s/%s/times/%s.json' % (kline, period,addWangyiPrefix(code))
         response = requests.get(url,timeout=timeout)
         response.raise_for_status()
         return response.json()
@@ -95,7 +62,7 @@ class Quotation:
             kline = 'kline'
         else:
             kline = 'klinederc'
-        url = 'http://img1.money.126.net/data/hs/%s/%s/history/%s/%s.json' % (kline,period,year,Quotation.__addPrefix(code))
+        url = 'http://img1.money.126.net/data/hs/%s/%s/history/%s/%s.json' % (kline, period, year, addWangyiPrefix(code))
         response = requests.get(url,timeout=timeout)
         response.raise_for_status()
         return response.json()
@@ -105,7 +72,7 @@ class Quotation:
         获取当日分时图数据
         :return:dict
         '''
-        url = 'http://img1.money.126.net/data/hs/time/today/%s.json' % Quotation.__addPrefix(code)
+        url = 'http://img1.money.126.net/data/hs/time/today/%s.json' % addWangyiPrefix(code)
         response = requests.get(url,timeout=timeout)
         response.raise_for_status()
         return response.json()
@@ -115,7 +82,7 @@ class Quotation:
         获取最近四天（不包括今天）的分时图数据
         :return:dict
         '''
-        url = 'http://img1.money.126.net/data/hs/time/4days/%s.json' % Quotation.__addPrefix(code)
+        url = 'http://img1.money.126.net/data/hs/time/4days/%s.json' % addWangyiPrefix(code)
         response = requests.get(url,timeout=timeout)
         response.raise_for_status()
         return response.json()
@@ -197,7 +164,7 @@ class DBInterface:
         self.__clear_data(code)
         #下载到今天为止的所有日线数据
         end_date = str(datetime.datetime.now().date())
-        data = Quotation.getDayData(code,'1990-01-01',end_date)
+        data = Quoter.getDayData(code, '1990-01-01', end_date)
         for row in data:
             self.__inset_without_commit(code, *row)
         self.__commit()
@@ -214,7 +181,7 @@ class DBInterface:
         if latestDate<today:
             start_date = datetime.datetime.strptime(latestDate,'%Y-%m-%d')+datetime.timedelta(days=1)
             start_date = datetime.datetime.strftime(start_date,'%Y-%m-%d')
-            data = Quotation.getDayData(code, start_date, today)
+            data = Quoter.getDayData(code, start_date, today)
             for row in data:
                 #插入会破坏数据库内部顺序，总是排序取出，不要依赖内部顺序
                 self.__inset_without_commit(code, *row)
