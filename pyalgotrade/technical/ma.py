@@ -48,12 +48,12 @@ class SMAEventWindow(technical.EventWindow):
     def onNewValue(self, dateTime, value):
         super().onNewValue(dateTime, value)
         if self.isFull():
-            self.__value = self.data.mean()
+            self.__value = self.data().mean()
 
     def onUpdateValue(self, dateTime, value):
         super().onUpdateValue(dateTime, value)
         if self.isFull():
-            self.__value = self.data.mean()
+            self.__value = self.data().mean()
 
     def calculate(self):
         return self.__value

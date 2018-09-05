@@ -153,11 +153,7 @@ class StopLimitOrder(broker.StopLimitOrder, BacktestingOrder):
 
     def getStopHit(self):
         return self.__stopHit
-
-    def isLimitOrderActive(self):
-        # TODO: Deprecated since v0.15. Use getStopHit instead.
-        return self.__stopHit
-
+    
     def process(self, broker_, bar_):
         return broker_.getFillStrategy().fillStopLimitOrder(broker_, self, bar_)
 

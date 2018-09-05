@@ -180,9 +180,6 @@ class BasicBar(Bar):
             self.__extra
         )
 
-    def __str__(self):
-        return 'datetime: %s open: %f close: %f high: %f low: %f volume: %f' % (self.__dateTime,self.__open,self.__close,self.__high,self.__low,self.__volume)
-
     def setUseAdjustedValue(self, useAdjusted):
         if useAdjusted and self.__adjClose is None:
             raise Exception("Adjusted close is not available")
@@ -243,7 +240,6 @@ class BasicBar(Bar):
 
     def getExtraColumns(self):
         return self.__extra
-
 
 class Bars(object):
 

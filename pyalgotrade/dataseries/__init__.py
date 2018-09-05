@@ -155,7 +155,7 @@ class BufferedSequenceDataSeries:
         return len(self.__values)
 
     def __iter__(self):
-        return iter(self.__dateTimes),iter(self.__values)
+        return iter(self.__values)
 
     def __getitem__(self, item):
         return self.__values[item]
@@ -171,6 +171,9 @@ class BufferedSequenceDataSeries:
     @property
     def dateTimes(self):
         return self.__dateTimes
+
+    def isBuffering(self):
+        return self.__values.isBuffering() or self.__dateTimes.isBuffering()
 
     def append(self, dateTime,value):
         """Appends a value."""

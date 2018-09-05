@@ -19,6 +19,7 @@
 """
 
 from pyalgotrade import dataseries
+import pandas as pd
 
 
 class BarDataSeries(dataseries.SequenceDataSeries):
@@ -108,13 +109,14 @@ class BarDataSeries(dataseries.SequenceDataSeries):
         """Returns a :class:`pyalgotrade.dataseries.DataSeries` for an extra column."""
         return self.__getOrCreateExtraDS(name)
 
+
 class BufferedBarDataSeries(dataseries.BufferedSequenceDataSeries):
     '''
     带缓存功能的Bar序列
     '''
     def __init__(self,zipMode=True):
         super().__init__()
-        self.__zipMode = self.__zipMode
+        self.__zipMode = zipMode
         if not zipMode:
             self.__openDS = dataseries.BufferedSequenceDataSeries()
             self.__highDS = dataseries.BufferedSequenceDataSeries()
@@ -127,54 +129,78 @@ class BufferedBarDataSeries(dataseries.BufferedSequenceDataSeries):
         assert(dateTime is not None)
         assert(bar is not None)
 
-        bar.setUseAdjustedValue(False)
         super().append(dateTime,bar)
 
         if not self.__zipMode:
-            self.__openDS.append(dateTime, bar.getOpen())
-            self.__highDS.append(dateTime, bar.getHigh())
-            self.__lowDS.append(dateTime, bar.getLow())
-
-        self.__closeDS.append(dateTime, bar.getClose())
-        self.__volumeDS.append(dateTime, bar.getVolume())
+            self.__openDS.append(dateTime, bar.open)
+            self.__highDS.append(dateTime, bar.high)
+            self.__lowDS.append(dateTime, bar.low)
+        self.__closeDS.append(dateTime, bar.close)
+        self.__volumeDS.append(dateTime, bar.volume)
 
     def update(self,dateTime,bar):
 
         assert(dateTime is not None)
         assert(bar is not None)
 
-        bar.setUseAdjustedValue(False)
         super().update(dateTime,bar)
 
         if not self.__zipMode:
-            self.__openDS.update(dateTime, bar.getOpen())
-            self.__highDS.update(dateTime, bar.getHigh())
-            self.__lowDS.update(dateTime, bar.getLow())
+            self.__openDS.update(dateTime, bar.open)
+            self.__highDS.update(dateTime, bar.high)
+            self.__lowDS.update(dateTime, bar.low)
 
-        self.__closeDS.update(dateTime, bar.getClose())
-        self.__volumeDS.update(dateTime, bar.getVolume())
+        self.__closeDS.update(dateTime, bar.close)
+        self.__volumeDS.update(dateTime, bar.volume)
 
-    def getOpenDataSeries(self):
+    @property
+    def openDataSeries(self):
         """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the open prices."""
         return self.__openDS
 
-    def getCloseDataSeries(self):
+    @property
+    def closeDataSeries(self):
         """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the close prices."""
         return self.__closeDS
 
-    def getHighDataSeries(self):
+    @property
+    def highDataSeries(self):
         """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the high prices."""
         return self.__highDS
 
-    def getLowDataSeries(self):
+    @property
+    def lowDataSeries(self):
         """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the low prices."""
         return self.__lowDS
 
-    def getVolumeDataSeries(self):
+    @property
+    def volumeDataSeries(self):
         """Returns a :class:`pyalgotrade.dataseries.DataSeries` with the volume."""
         return self.__volumeDS
 
     @property
     def zipMode(self):
         return self.__zipMode
+
+    def toDF(self)->pd.DataFrame:
+        '''
+        大量内存复制操作，应该仅在盘后分析时调用
+        :return:
+        '''
+        if not self.__zipMode:
+            data = { 'open':list(iter(self.__openDS)),
+                    'clsoe':list(iter(self.__closeDS)),
+                     'high':list(iter(self.__highDS)),
+                     'low':list(iter(self.__lowDS)),
+                     'volume':list(iter(self.__volumeDS)) }
+        else:
+            data = { 'clsoe':list(iter(self.__closeDS)), 'volume':list(iter(self.__volumeDS)) }
+
+        ret = pd.DataFrame(data, index=self.dateTimes)
+        ret.index.name = 'datetime'
+        return ret
+
+    def toCSV(self,path):
+        self.toDF().to_csv(path)
+
 

@@ -60,14 +60,17 @@ class EventWindow:
         assert dateTime is not None and value is not None
         self.__values.update(value)
 
+    def data(self):
+        '''
+        为了避免数据复制，返回的是引用数据，注意不能要修改源数据
+        :return:
+        '''
+        return self.__values._BufferedNumpyDeque__data
+
     @property
     def windowSize(self):
         """Returns the window size."""
         return self.__windowSize
-
-    @property
-    def data(self):
-        return self.__values.data
 
     def isFull(self):
         return len(self.__values) == self.__windowSize

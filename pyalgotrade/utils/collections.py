@@ -161,10 +161,6 @@ class BufferedList:
     def isBuffering(self):
         return self.__buffering
 
-    @property
-    def data(self):
-        return self.__values
-
     def append(self,value):
         if self.__buffering:
             self.__values[-1] = value
@@ -193,13 +189,13 @@ class BufferedNumPyDeque:
         return self.__nextPos
 
     def __getitem__(self, item):
-        return self.data[item]
+        return self.__data[item]
 
     def __iter__(self):
-        return iter(self.data)
+        return iter(self.__data)
 
     def __str__(self):
-        return str(self.data)
+        return str(self.__data)
 
     @property
     def maxLen(self):
@@ -208,9 +204,8 @@ class BufferedNumPyDeque:
     def isBuffering(self):
         return self.__buffering
 
-    #TODO 考虑是否返回copy，防止被修改，因为使用这个类的窗口一般数据量较少
     @property
-    def data(self):
+    def __data(self):
         # If all values are not initialized, return a portion of the array.
         if self.__nextPos < self.__maxLen:
             ret = self.__values[0:self.__nextPos]
@@ -220,7 +215,7 @@ class BufferedNumPyDeque:
     
     def append(self, value):
         if self.__buffering:
-            self.data[-1] = value
+            self.__data[-1] = value
         else:
             if self.__nextPos < self.__maxLen:
                 self.__values[self.__nextPos] = value
@@ -236,4 +231,4 @@ class BufferedNumPyDeque:
             self.append(value)
             self.__buffering = True
         else:
-            self.data[-1] = value
+            self.__data[-1] = value
