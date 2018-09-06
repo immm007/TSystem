@@ -191,10 +191,10 @@ class BufferedSequenceDataSeries:
         assert dateTime is not None
         #技术指标可以为None
         #assert value is not None
-        if len(self.__dateTimes) != 0 and self.__dateTimes[-1] >= dateTime:
+        if len(self.__dateTimes) != 0 and self.__dateTimes[-1] != dateTime:
             raise Exception("Invalid datetime. It %s must be bigger than that last one %s" % (self.__dateTimes[-1],dateTime))
         self.__dateTimes.update(dateTime)
         self.__values.update(value)
-        self.__updateValueEvent(self,dateTime,value)
+        self.__updateValueEvent.emit(self,dateTime,value)
 
 

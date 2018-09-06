@@ -1,5 +1,6 @@
 from pyalgotrade.utils import addSinaPrefix,CSVStringHelper
 from pyalgotrade.feed import BaseLiveFeed
+from pyalgotrade.stock.bar import Frequency,Bar
 import requests
 
 
@@ -13,11 +14,11 @@ class Quoter:
         url = "http://hq.sinajs.cn/list=%s" % addSinaPrefix(code)
         response = requests.get(url,timeout=timeout)
         response.raise_for_status()
-        return response.text
+        return response.text.split(',')
 
     def getIntraDayQuote(code,period=5,timeout=5):
         '''
-        获取5,15,30,60分钟数据，最多1023个数据
+        获取5,15,30,60分钟数据，只能获取不到300条数据，似乎并不是1023条
         :param period: :type int
         :param timeout:
         :return:list of dict
@@ -41,3 +42,48 @@ class Quoter:
         response.raise_for_status()
         content = next(CSVStringHelper(response.text))
         return content
+
+
+class LiveFeed(BaseLiveFeed):
+    def getNextBar(self,code,frequency):
+        stock = self[code]
+        last_bar = stock[frequency][-1]
+        if frequency==Frequency.DAY:
+            l = Quoter.getRTQuote(code)
+            bar = Bar(l[-3],float(l[1]),float(l[4]),float(l[5]),float(l[3]),int(l[8]),frequency)
+            if bar.dateTime==last_bar.dateTime:
+                #数据未更新
+                if bar==last_bar:
+                    return None,None
+                return bar,True
+            elif bar.dateTime>last_bar.dateTime:
+                return bar,False
+            else:
+                raise RuntimeError("new bar's datetime cannot be less than old one")
+        else:
+            l = Quoter.getIntraDayQuote(code,frequency/60)
+            bar = l[-1]
+            bar = Bar(bar['day'],float(bar['open']),float(bar['high']),float(bar['low']),
+                      float(bar['close']),int(bar['volume']),frequency)
+            if bar.dateTime==last_bar.dateTime:
+                #数据未更新
+                if bar==last_bar:
+                    return None,None
+                return bar,True
+            elif bar.dateTime>last_bar.dateTime:
+                #有新的bar出现，看下上一个bar是否需要做最后更新
+                bar2 = l[-2]
+                bar2 = Bar(bar2['day'], float(bar2['open']), float(bar2['high']), float(bar2['low']),
+                           float(bar2['close']), int(bar2['volume']), frequency)
+                assert bar2.dateTime==last_bar.dateTime
+                #若前一个bar状态有更新则强制改变buffer状态
+                if bar2!=last_bar:
+                    print('漏更新')
+                    stock.append(last_bar.dateTime,last_bar)
+                return bar,False
+            else:
+                 raise RuntimeError("new bar's datetime %s cannot be less than old one %s" %(bar.dateTime,last_bar.dateTime))
+
+
+
+

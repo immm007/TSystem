@@ -140,15 +140,22 @@ class BaseLiveFeed(observer.Subject):
         return None
 
     def dispatch(self):
-        for code,stock in self._stocks:
+        ret = False
+        for code in self._stocks:
+            stock = self._stocks[code]
             for frequency in stock.analysisPeriods:
-                update,bar= self.getNextBar(stock.code,frequency)
-                if update:
-                    stock.update(bar)
-                else:
-                    stock.append(bar)
+                bar,update= self.getNextBar(code,frequency)
+                if bar is not None:
+                    ret = True
+                    if update:
+                        print(bar)
+                        stock.update(bar)
+                    else:
+                        print(bar)
+                        stock.append(bar)
+        return ret
 
-    def getStock(self,code):
+    def __getitem__(self, code):
         return self._stocks[code]
 
     def getNextBar(self,code,frequency):
@@ -164,11 +171,8 @@ class BaseLiveFeed(observer.Subject):
         '''
         不支持动态添加技术指标，添加股票时，要设置好技术指标
         不支持动态添加股票，一开始就要将股票添加进来
-        :param stock:
-        :return:
         '''
-        if stock.loadData():
-            self._stocks[stock.code] = stock
+        self._stocks[stock.code] = stock
 
 
 
