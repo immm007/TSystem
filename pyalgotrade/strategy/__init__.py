@@ -600,3 +600,10 @@ class BacktestingStrategy(BaseStrategy):
         level = logging.DEBUG if debugOn else logging.INFO
         self.getLogger().setLevel(level)
         self.getBroker().getLogger().setLevel(level)
+
+
+class BaseLiveStrategy(BaseStrategy):
+    '''
+    在线策略的基类
+    '''
+    pass

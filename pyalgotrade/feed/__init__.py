@@ -118,11 +118,13 @@ class BaseFeed(observer.Subject):
         """Returns True if a :class:`pyalgotrade.dataseries.DataSeries` for the given key is available."""
         return key in self.__ds
 
-class BaseLiveFeed(observer.Subject):
 
+class BaseLiveFeed(observer.Subject):
     def __init__(self):
+        super().__init__()
         self.__stop = True
-        self._stocks = {}
+        self.__stocks = {}
+        self.__event = observer.Event()
 
     def start(self):
         self.__stop = False
@@ -139,24 +141,26 @@ class BaseLiveFeed(observer.Subject):
     def peekDateTime(self):
         return None
 
+    def getNewValuesEvent(self):
+        return self.__event
+
     def dispatch(self):
         ret = False
-        for code in self._stocks:
-            stock = self._stocks[code]
+        for code in self.__stocks:
+            stock = self.__stocks[code]
             for frequency in stock.analysisPeriods:
                 bar,update= self.getNextBar(code,frequency)
                 if bar is not None:
                     ret = True
                     if update:
-                        print(bar)
                         stock.update(bar)
                     else:
-                        print(bar)
                         stock.append(bar)
+                    self.__event.emit(bar.dateTime,bar)
         return ret
 
     def __getitem__(self, code):
-        return self._stocks[code]
+        return self.__stocks[code]
 
     def getNextBar(self,code,frequency):
         '''
@@ -172,7 +176,7 @@ class BaseLiveFeed(observer.Subject):
         不支持动态添加技术指标，添加股票时，要设置好技术指标
         不支持动态添加股票，一开始就要将股票添加进来
         '''
-        self._stocks[stock.code] = stock
+        self.__stocks[stock.code] = stock
 
 
 
