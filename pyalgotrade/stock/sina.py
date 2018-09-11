@@ -5,9 +5,17 @@ import requests
 
 
 d1 = {'day':'day','open':'open','close':'close','high':'high','low':'low','volume':'volume'}
-cookies1 = {}
+
+headers1 = {
+'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+'Cache-Control': 'max-age=0',
+'Connection': 'keep-alive',
+'Host': 'money.finance.sina.com.cn',
+'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36'
+}
 
 class Quoter:
+    cookies = {5:{},15:{},30:{},60:{}}
     '''
     新浪api封装，所有类都是静态方法
     '''
@@ -24,14 +32,11 @@ class Quoter:
         :param timeout:
         :return:list of dict
         '''
-        global cookies1
         url = "http://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?" \
               "symbol=%s&scale=%d&ma=no&datalen=1023" % (addSinaPrefix(code),period)
-        if cookies1:
-            response = requests.get(url,timeout=timeout,cookies=cookies1)
-        else:
-            response = requests.get(url,timeout=timeout)
-            cookies1 = response.cookies
+        response = requests.get(url, timeout=timeout, headers=headers1, cookies=Quoter.cookies[period])
+        if response.cookies:
+            Quoter.cookies[period] = response.cookies
         response.raise_for_status()
         return eval(response.text,d1)
 
@@ -72,7 +77,7 @@ class LiveFeed(BaseLiveFeed):
             bar = Bar(bar['day'],float(bar['open']),float(bar['high']),float(bar['low']),
                       float(bar['close']),int(bar['volume']),frequency)
             if bar.dateTime == last_bar.dateTime:
-                assert bar.volume>=last_bar.volume,(last_bar,bar)
+                assert bar.volume>=last_bar.volume,(str(last_bar),str(bar))
                 #数据未更新
                 if bar == last_bar:
                     return None,None
@@ -86,7 +91,7 @@ class LiveFeed(BaseLiveFeed):
                 #若前一个bar状态有更新则强制改变buffer状态
                 if bar2 != last_bar:
                     print('漏更新')
-                    stock.append(last_bar.dateTime,last_bar)
+                    stock.append(last_bar)
                 return bar,False
             else:
                  raise RuntimeError("new bar's datetime %s cannot be less than old one %s" %(bar.dateTime,last_bar.dateTime))
